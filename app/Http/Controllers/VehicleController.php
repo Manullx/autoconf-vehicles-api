@@ -8,20 +8,12 @@ use App\Http\Requests\UpdateVehicleRequest;
 use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 
 class VehicleController extends Controller
 {
-    public function store(StoreVehicleRequest $request): Vehicle
-    {
-        $vehicle = Vehicle::create([
-            'active' => true,
-            ...$request->validated(),
-        ]);
-
-        return $vehicle;
-    }
-
-    public function findAll(ListVehiclesRequest $request): LengthAwarePaginator
+    public function index(ListVehiclesRequest $request): LengthAwarePaginator
     {
         $filters = $request->validated();
         $query = Vehicle::query();
@@ -50,36 +42,33 @@ class VehicleController extends Controller
         return $query->paginate($filters['per_page'] ?? 15)->withQueryString();
     }
 
-    public function findOne(string $id): Vehicle
+    public function store(StoreVehicleRequest $request): JsonResponse
     {
+        $vehicle = Vehicle::create([
+            'active' => true,
+            ...$request->validated(),
+        ]);
 
-        $vehicle = Vehicle::where('id', $id)->first();
+        return response()->json($vehicle, 201);
+    }
 
+    public function show(Vehicle $vehicle): Vehicle
+    {
         return $vehicle;
     }
 
-    public function remove(string $id): Vehicle
+    public function update(UpdateVehicleRequest $request, Vehicle $vehicle): Vehicle
     {
-
-        $vehicle = Vehicle::where('id', $id)->first();
-        $vehicle->active = false;
-        $vehicle->save();
-
-        return $vehicle;
-    }
-
-    public function update(UpdateVehicleRequest $request, string $id): Vehicle
-    {
-
-        $vehicle = Vehicle::findOrFail($id);
         $vehicle->update($request->validated());
 
         return $vehicle->refresh();
     }
 
-    public function patch(UpdateVehicleRequest $request, string $id): Vehicle
+    public function destroy(Vehicle $vehicle): Response
     {
+        $vehicle->active = false;
+        $vehicle->save();
 
-        return $this->update($request, $id);
+        return response()->noContent();
     }
 }

@@ -21,18 +21,7 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
 
-    Route::get('/vehicles', [VehicleController::class, 'findAll']);
-
     Route::apiResource('users', UserController::class);
 
-    Route::prefix('vehicle')->group(function () {
-
-        Route::post('/', [VehicleController::class, 'store']);
-        Route::get('/', [VehicleController::class, 'findAll']);
-        Route::get('/{id}', [VehicleController::class, 'findOne']);
-        Route::put('/{id}', [VehicleController::class, 'update']);
-        Route::patch('/{id}', [VehicleController::class, 'patch']);
-        Route::delete('/{id}', [VehicleController::class, 'remove']);
-
-    });
+    Route::apiResource('vehicles', VehicleController::class);
 });
