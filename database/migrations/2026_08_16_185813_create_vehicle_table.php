@@ -14,9 +14,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('vehicle', function (Blueprint $table) {
+        Schema::create('vehicles', function (Blueprint $table) {
             $table->id();
-
+            $table->boolean('active');
             $table->string('placa', length: 7)->unique();
             $table->string('chassi', length: 17)->unique();
             $table->string('marca');
