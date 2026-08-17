@@ -2,15 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-
 use App\Models\Vehicle;
+use App\Http\Requests\StoreVehicleRequest;
 
 class VehicleController extends Controller
 {
     
-    public function store(Request $request): Vehicle {
-
+    public function store(StoreVehicleRequest $request): Vehicle {
+        
         $vehicle = Vehicle::create([
             'active' => true,
             'placa' => $request->input('placa'),
