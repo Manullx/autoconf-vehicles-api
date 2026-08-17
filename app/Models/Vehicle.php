@@ -9,6 +9,7 @@ class Vehicle extends Model
 {
 
     protected $fillable = [
+        'active',
         'placa',
         'chassi',
         'marca',
@@ -21,7 +22,7 @@ class Vehicle extends Model
         'combustivel'
     ];
 
-    public function comments(): HasMany {
+    public function vehicleImages(): HasMany {
 
         return $this->hasMany(VehicleImage::class);
     }

@@ -16,7 +16,7 @@ return new class extends Migration
     {
         Schema::create('vehicles', function (Blueprint $table) {
             $table->id();
-
+            $table->boolean('active');
             $table->string('placa', length: 7)->unique();
             $table->string('chassi', length: 17)->unique();
             $table->string('marca');
