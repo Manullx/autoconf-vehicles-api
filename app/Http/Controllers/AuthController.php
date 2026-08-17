@@ -19,7 +19,7 @@ class AuthController extends Controller
             'is_admin' => false,
         ]);
 
-        return $this->tokenResponse($user, 201);
+        return response()->json($user, 201);
     }
 
     public function login(LoginRequest $request): JsonResponse
