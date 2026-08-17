@@ -24,15 +24,15 @@ class StoreVehicleRequest extends FormRequest
     {
         return [
             'placa' => ['required', 'alpha_num:ascii', Rule::unique('vehicles', 'placa'), 'regex:/^[A-Z]{3}\d[A-Z]\d{2}$/i', 'size:7'],
-            'chassi' => ['required', Rule::unique('vehicles', 'chassi'), 'size:17'],
+            'chassi' => ['required', 'alpha_num:ascii', Rule::unique('vehicles', 'chassi'), 'size:17'],
             'marca' => ['required'],
             'modelo' => ['required'],
             'versao' => ['required'],
-            'valor_venda' => ['required', 'numeric', 'decimal:2'],
+            'valor_venda' => ['required', 'numeric', 'decimal:2', 'min:0.01'],
             'cor' => ['required'],
-            'km' => ['required', 'numeric', 'gt:0'],
+            'km' => ['required', 'integer', 'min:0'],
             'cambio' => ['required', Rule::enum(Cambio::class)],
-            'combustivel' => ['required', Rule::enum(Combustivel::class)],
+            'combustivel' => ['required', Rule::enum(Combustivel::class)]
         ];
     }
 }
