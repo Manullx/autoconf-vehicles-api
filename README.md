@@ -1,59 +1,88 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Autoconf Vehicles API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+API REST em Laravel 12 para autenticação, administração de usuários, veículos e imagens. A autenticação é stateless via Bearer token do Laravel Sanctum.
 
-## About Laravel
+## Requisitos e instalação
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- PHP 8.2 ou superior, Composer e SQLite, MySQL ou PostgreSQL.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+```bash
+composer install
+cp .env.example .env
+php artisan key:generate
+```
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Configure no `.env` a conexão com o banco e as credenciais do administrador inicial:
 
-## Learning Laravel
+```dotenv
+ADMIN_NAME=Administrator
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=uma-senha-segura
+CORS_ALLOWED_ORIGINS=https://app.example.com
+```
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+Use origens separadas por vírgulas em `CORS_ALLOWED_ORIGINS` quando necessário. Não use `*` em produção.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Prepare o banco, os dez veículos de exemplo e suas imagens placeholder:
 
-## Laravel Sponsors
+```bash
+php artisan migrate --seed
+php artisan storage:link
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+O seeder é idempotente e pode ser repetido com `php artisan db:seed`. As imagens ficam em `storage/app/public/vehicles`.
 
-### Premium Partners
+## Execução e testes
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+```bash
+composer run dev
+composer test
+```
 
-## Contributing
+A API fica disponível, por padrão, em `http://localhost:8000/api`.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Autenticação
 
-## Code of Conduct
+Gere um token enviando as credenciais para o login:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+curl -X POST http://localhost:8000/api/auth/login \
+  -H 'Accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","password":"uma-senha-segura"}'
+```
 
-## Security Vulnerabilities
+Envie o token retornado nas chamadas protegidas:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+curl http://localhost:8000/api/vehicles \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer SEU_TOKEN'
+```
 
-## License
+O logout em `POST /api/auth/logout` revoga o token usado na requisição.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Documentação da API
+
+O contrato completo está em [docs/openapi.yaml](docs/openapi.yaml), no formato OpenAPI 3.1. Ele pode ser importado no Swagger Editor, Postman, Insomnia ou em outro gerador compatível.
+
+Os erros usam JSON consistente inspirado em RFC 7807, com `type`, `title`, `status` e `message`. Erros de validação também incluem `errors`, agrupado por campo.
+
+## Segurança e observabilidade
+
+- A API usa tokens pessoais do Sanctum, sem autenticação por sessão/CSRF.
+- CORS aceita somente as origens configuradas em `CORS_ALLOWED_ORIGINS`.
+- Login e registro possuem limite de 5 requisições por minuto; operações de imagem, 30 por minuto.
+- Models usam `$fillable`, e controllers persistem somente dados validados.
+- Exceções inesperadas são registradas pelo canal definido em `LOG_CHANNEL`. Em produção, use `APP_DEBUG=false`, `LOG_CHANNEL=daily` e `LOG_LEVEL=warning` ou mais restritivo.
+
+## Principais respostas
+
+- `200`: consulta ou atualização realizada.
+- `201`: recurso criado.
+- `204`: exclusão ou logout realizado.
+- `401`: token ausente ou inválido.
+- `403`: usuário sem permissão.
+- `404`: recurso inexistente.
+- `422`: dados inválidos.
+- `429`: limite de requisições excedido.

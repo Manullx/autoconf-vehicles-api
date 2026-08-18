@@ -1,0 +1,199 @@
+openapi: 3.1.0
+info:
+  title: Autoconf Vehicles API
+  version: 1.0.0
+  description: API stateless para usuários, veículos e imagens.
+servers:
+  - url: http://localhost:8000/api
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      summary: Autentica e cria um token
+      security: []
+      requestBody: {$ref: '#/components/requestBodies/Login'}
+      responses:
+        '200': {description: Token criado, content: {application/json: {schema: {$ref: '#/components/schemas/Token'}}}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '422': {$ref: '#/components/responses/Invalid'}
+        '429': {$ref: '#/components/responses/Throttled'}
+  /auth/register:
+    post:
+      summary: Cadastra usuário regular (administrador)
+      requestBody: {$ref: '#/components/requestBodies/User'}
+      responses:
+        '201': {description: Criado, content: {application/json: {schema: {$ref: '#/components/schemas/User'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Invalid'}
+        '429': {$ref: '#/components/responses/Throttled'}
+  /auth/logout:
+    post:
+      summary: Revoga o token atual
+      responses:
+        '204': {description: Token revogado}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+  /auth/me:
+    get:
+      summary: Retorna o usuário autenticado
+      responses:
+        '200': {description: Usuário, content: {application/json: {schema: {$ref: '#/components/schemas/User'}}}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+  /user:
+    get:
+      summary: Alias do usuário autenticado
+      responses:
+        '200': {description: Usuário, content: {application/json: {schema: {$ref: '#/components/schemas/User'}}}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+  /users:
+    get:
+      summary: Lista usuários (administrador)
+      responses:
+        '200': {description: Página de usuários}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      summary: Cria usuário (administrador)
+      requestBody: {$ref: '#/components/requestBodies/User'}
+      responses:
+        '201': {description: Criado, content: {application/json: {schema: {$ref: '#/components/schemas/User'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Invalid'}
+  /users/{user}:
+    parameters:
+      - {name: user, in: path, required: true, schema: {type: integer}}
+    get:
+      summary: Exibe usuário (administrador)
+      responses:
+        '200': {description: Usuário, content: {application/json: {schema: {$ref: '#/components/schemas/User'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      summary: Substitui usuário (administrador)
+      requestBody: {$ref: '#/components/requestBodies/User'}
+      responses: {'200': {description: Atualizado}, '403': {$ref: '#/components/responses/Forbidden'}, '422': {$ref: '#/components/responses/Invalid'}}
+    patch:
+      summary: Atualiza usuário (administrador)
+      requestBody: {$ref: '#/components/requestBodies/User'}
+      responses: {'200': {description: Atualizado}, '403': {$ref: '#/components/responses/Forbidden'}, '422': {$ref: '#/components/responses/Invalid'}}
+    delete:
+      summary: Exclui usuário (administrador)
+      responses: {'204': {description: Excluído}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}}
+  /vehicles:
+    get:
+      summary: Lista veículos acessíveis
+      parameters:
+        - {name: q, in: query, schema: {type: string, maxLength: 255}}
+        - {name: placa, in: query, schema: {type: string, maxLength: 7}}
+        - {name: marca, in: query, schema: {type: string}}
+        - {name: modelo, in: query, schema: {type: string}}
+        - {name: sort, in: query, schema: {type: string, example: '-created_at,marca'}}
+        - {name: page, in: query, schema: {type: integer, minimum: 1}}
+        - {name: per_page, in: query, schema: {type: integer, minimum: 1, maximum: 100}}
+      responses: {'200': {description: Página de veículos}, '422': {$ref: '#/components/responses/Invalid'}}
+    post:
+      summary: Cria veículo para o usuário autenticado
+      requestBody: {$ref: '#/components/requestBodies/Vehicle'}
+      responses:
+        '201': {description: Criado, content: {application/json: {schema: {$ref: '#/components/schemas/Vehicle'}}}}
+        '422': {$ref: '#/components/responses/Invalid'}
+  /vehicles/{vehicle}:
+    parameters:
+      - {name: vehicle, in: path, required: true, schema: {type: integer}}
+    get:
+      summary: Exibe veículo
+      responses: {'200': {description: Veículo}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}}
+    put:
+      summary: Substitui veículo
+      requestBody: {$ref: '#/components/requestBodies/Vehicle'}
+      responses: {'200': {description: Atualizado}, '403': {$ref: '#/components/responses/Forbidden'}, '422': {$ref: '#/components/responses/Invalid'}}
+    patch:
+      summary: Atualiza parcialmente o veículo
+      requestBody: {$ref: '#/components/requestBodies/Vehicle'}
+      responses: {'200': {description: Atualizado}, '403': {$ref: '#/components/responses/Forbidden'}, '422': {$ref: '#/components/responses/Invalid'}}
+    delete:
+      summary: Desativa veículo
+      responses: {'204': {description: Desativado}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}}
+  /vehicles/{vehicleId}/images:
+    post:
+      summary: Envia imagens; a primeira torna-se capa
+      parameters:
+        - {name: vehicleId, in: path, required: true, schema: {type: integer}}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files: {type: array, minItems: 1, items: {type: string, format: binary}}
+      responses: {'201': {description: Imagens criadas}, '403': {$ref: '#/components/responses/Forbidden'}, '422': {$ref: '#/components/responses/Invalid'}, '429': {$ref: '#/components/responses/Throttled'}}
+  /vehicles/{vehicleId}/images/{imageId}/cover:
+    patch:
+      summary: Define imagem como capa
+      parameters: &imageParameters
+        - {name: vehicleId, in: path, required: true, schema: {type: integer}}
+        - {name: imageId, in: path, required: true, schema: {type: integer}}
+      responses: {'200': {description: Nova capa}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}, '429': {$ref: '#/components/responses/Throttled'}}
+  /vehicles/{vehicleId}/images/{imageId}:
+    delete:
+      summary: Exclui imagem e arquivo
+      parameters: *imageParameters
+      responses: {'204': {description: Excluída}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}, '429': {$ref: '#/components/responses/Throttled'}}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: Sanctum PAT}
+  schemas:
+    User:
+      type: object
+      properties: {id: {type: integer}, name: {type: string}, email: {type: string, format: email}, is_admin: {type: boolean}}
+    UserInput:
+      type: object
+      required: [name, email, password]
+      properties: {name: {type: string, maxLength: 255}, email: {type: string, format: email}, password: {type: string, minLength: 8}, is_admin: {type: boolean}}
+    Vehicle:
+      allOf:
+        - {$ref: '#/components/schemas/VehicleInput'}
+        - {type: object, properties: {id: {type: integer}, user_id: {type: integer}, active: {type: boolean}}}
+    VehicleInput:
+      type: object
+      required: [placa, chassi, marca, modelo, versao, valor_venda, cor, km, cambio, combustivel]
+      properties:
+        placa: {type: string, pattern: '^[A-Za-z]{3}[0-9][A-Za-z][0-9]{2}$'}
+        chassi: {type: string, minLength: 17, maxLength: 17}
+        marca: {type: string}
+        modelo: {type: string}
+        versao: {type: string}
+        valor_venda: {type: number, minimum: 0.01}
+        cor: {type: string}
+        km: {type: integer, minimum: 0}
+        cambio: {type: string, enum: [manual, automatico]}
+        combustivel: {type: string, enum: [gasolina, alcool, flex, diesel, hibrido, eletrico]}
+    Token:
+      type: object
+      properties: {user: {$ref: '#/components/schemas/User'}, token: {type: string}, token_type: {type: string, const: Bearer}}
+    Problem:
+      type: object
+      required: [type, title, status, message]
+      properties:
+        type: {type: string, format: uri}
+        title: {type: string}
+        status: {type: integer}
+        message: {type: string}
+        errors: {type: object, additionalProperties: {type: array, items: {type: string}}}
+  requestBodies:
+    Login:
+      required: true
+      content: {application/json: {schema: {type: object, required: [email, password], properties: {email: {type: string, format: email}, password: {type: string}}}}}
+    User:
+      required: true
+      content: {application/json: {schema: {$ref: '#/components/schemas/UserInput'}}}
+    Vehicle:
+      required: true
+      content: {application/json: {schema: {$ref: '#/components/schemas/VehicleInput'}}}
+  responses:
+    Unauthenticated: {description: Token ausente ou inválido, content: {application/json: {schema: {$ref: '#/components/schemas/Problem'}}}}
+    Forbidden: {description: Operação não permitida, content: {application/json: {schema: {$ref: '#/components/schemas/Problem'}}}}
+    NotFound: {description: Recurso não encontrado, content: {application/json: {schema: {$ref: '#/components/schemas/Problem'}}}}
+    Invalid: {description: Dados inválidos, content: {application/json: {schema: {$ref: '#/components/schemas/Problem'}}}}
+    Throttled: {description: Limite de requisições excedido}
