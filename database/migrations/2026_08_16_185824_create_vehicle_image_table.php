@@ -12,6 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('vehicle_image', function (Blueprint $table) {
+            $table->id();
             $table->unsignedBigInteger('vehicle_id');
             $table->string('path');
             $table->boolean('is_cover');

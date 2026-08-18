@@ -16,7 +16,7 @@ class VehicleController extends Controller
     public function index(ListVehiclesRequest $request): LengthAwarePaginator
     {
         $filters = $request->validated();
-        $query = Vehicle::query();
+        $query = Vehicle::query()->with('vehicleImages');
 
         if (isset($filters['q'])) {
             $search = $filters['q'];
@@ -54,7 +54,7 @@ class VehicleController extends Controller
 
     public function show(Vehicle $vehicle): Vehicle
     {
-        return $vehicle;
+        return $vehicle->load('vehicleImages');
     }
 
     public function update(UpdateVehicleRequest $request, Vehicle $vehicle): Vehicle

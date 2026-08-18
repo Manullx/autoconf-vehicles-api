@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VehicleController;
+use App\Http\Controllers\VehicleImageController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -24,4 +25,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('users', UserController::class);
 
     Route::apiResource('vehicles', VehicleController::class);
+    Route::post('/vehicles/{vehicleId}/images', [VehicleImageController::class, 'store']);
+    Route::patch('/vehicles/{vehicleId}/images/{imageId}/cover', [VehicleImageController::class, 'cover']);
+    Route::delete('/vehicles/{vehicleId}/images/{imageId}', [VehicleImageController::class, 'destroy']);
 });
