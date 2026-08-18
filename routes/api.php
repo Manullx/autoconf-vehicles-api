@@ -25,7 +25,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('users', UserController::class);
 
     Route::apiResource('vehicles', VehicleController::class);
-    Route::post('/vehicles/{vehicleId}/images', [VehicleImageController::class, 'store']);
-    Route::patch('/vehicles/{vehicleId}/images/{imageId}/cover', [VehicleImageController::class, 'cover']);
-    Route::delete('/vehicles/{vehicleId}/images/{imageId}', [VehicleImageController::class, 'destroy']);
+    Route::post('/vehicles/{vehicleId}/images', [VehicleImageController::class, 'store'])->middleware('throttle:30,1');
+    Route::patch('/vehicles/{vehicleId}/images/{imageId}/cover', [VehicleImageController::class, 'cover'])->middleware('throttle:30,1');
+    Route::delete('/vehicles/{vehicleId}/images/{imageId}', [VehicleImageController::class, 'destroy'])->middleware('throttle:30,1');
 });
