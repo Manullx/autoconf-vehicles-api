@@ -8,23 +8,22 @@ use App\Http\Requests\UpdateVehicleRequest;
 use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Gate;
 
 class VehicleController extends Controller
 {
-    public function store(StoreVehicleRequest $request): Vehicle
-    {
-        $vehicle = Vehicle::create([
-            'active' => true,
-            ...$request->validated(),
-        ]);
-
-        return $vehicle;
-    }
-
-    public function findAll(ListVehiclesRequest $request): LengthAwarePaginator
+    public function index(ListVehiclesRequest $request): LengthAwarePaginator
     {
         $filters = $request->validated();
-        $query = Vehicle::query();
+        $query = Vehicle::query()->with('vehicleImages');
+
+        Gate::authorize('viewAny', Vehicle::class);
+
+        if (! $request->user()->is_admin) {
+            $query->where('user_id', $request->user()->id);
+        }
 
         if (isset($filters['q'])) {
             $search = $filters['q'];
@@ -50,36 +49,42 @@ class VehicleController extends Controller
         return $query->paginate($filters['per_page'] ?? 15)->withQueryString();
     }
 
-    public function findOne(string $id): Vehicle
+    public function store(StoreVehicleRequest $request): JsonResponse
     {
+        Gate::authorize('create', Vehicle::class);
 
-        $vehicle = Vehicle::where('id', $id)->first();
+        $vehicle = Vehicle::create([
+            'user_id' => $request->user()->id,
+            'active' => true,
+            ...$request->validated(),
+        ]);
 
-        return $vehicle;
+        return response()->json($vehicle, 201);
     }
 
-    public function remove(string $id): Vehicle
+    public function show(Vehicle $vehicle): Vehicle
     {
+        Gate::authorize('view', $vehicle);
 
-        $vehicle = Vehicle::where('id', $id)->first();
-        $vehicle->active = false;
-        $vehicle->save();
-
-        return $vehicle;
+        return $vehicle->load('vehicleImages');
     }
 
-    public function update(UpdateVehicleRequest $request, string $id): Vehicle
+    public function update(UpdateVehicleRequest $request, Vehicle $vehicle): Vehicle
     {
+        Gate::authorize('update', $vehicle);
 
-        $vehicle = Vehicle::findOrFail($id);
         $vehicle->update($request->validated());
 
         return $vehicle->refresh();
     }
 
-    public function patch(UpdateVehicleRequest $request, string $id): Vehicle
+    public function destroy(Vehicle $vehicle): Response
     {
+        Gate::authorize('delete', $vehicle);
 
-        return $this->update($request, $id);
+        $vehicle->active = false;
+        $vehicle->save();
+
+        return response()->noContent();
     }
 }

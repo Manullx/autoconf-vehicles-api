@@ -21,11 +21,11 @@ class UpdateVehicleRequest extends FormRequest
     public function rules(): array
     {
         $presenceRule = $this->isMethod('patch') ? 'sometimes' : 'required';
-        $vehicleId = $this->route('id');
+        $vehicle = $this->route('vehicle');
 
         return [
-            'placa' => [$presenceRule, 'alpha_num:ascii', Rule::unique('vehicles', 'placa')->ignore($vehicleId), 'regex:/^[A-Z]{3}\d[A-Z]\d{2}$/i', 'size:7'],
-            'chassi' => [$presenceRule, 'alpha_num:ascii', Rule::unique('vehicles', 'chassi')->ignore($vehicleId), 'size:17'],
+            'placa' => [$presenceRule, 'alpha_num:ascii', Rule::unique('vehicles', 'placa')->ignore($vehicle), 'regex:/^[A-Z]{3}\d[A-Z]\d{2}$/i', 'size:7'],
+            'chassi' => [$presenceRule, 'alpha_num:ascii', Rule::unique('vehicles', 'chassi')->ignore($vehicle), 'size:17'],
             'marca' => [$presenceRule],
             'modelo' => [$presenceRule],
             'versao' => [$presenceRule],
@@ -33,7 +33,7 @@ class UpdateVehicleRequest extends FormRequest
             'cor' => [$presenceRule],
             'km' => [$presenceRule, 'integer', 'min:0'],
             'cambio' => [$presenceRule, Rule::enum(Cambio::class)],
-            'combustivel' => [$presenceRule, Rule::enum(Combustivel::class)]
+            'combustivel' => [$presenceRule, Rule::enum(Combustivel::class)],
         ];
     }
 }

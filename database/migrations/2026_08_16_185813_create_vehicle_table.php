@@ -1,11 +1,10 @@
 <?php
 
+use App\Enums\Cambio;
+use App\Enums\Combustivel;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-
-use App\Enums\Cambio;
-use App\Enums\Combustivel;
 
 return new class extends Migration
 {
@@ -16,6 +15,7 @@ return new class extends Migration
     {
         Schema::create('vehicles', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained('users');
             $table->boolean('active');
             $table->string('placa', length: 7)->unique();
             $table->string('chassi', length: 17)->unique();
