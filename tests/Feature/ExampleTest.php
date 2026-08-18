@@ -10,10 +10,10 @@ class ExampleTest extends TestCase
     /**
      * A basic test example.
      */
-    public function test_the_application_returns_a_successful_response(): void
+    public function test_the_application_does_not_expose_a_web_page(): void
     {
         $response = $this->get('/');
 
-        $response->assertStatus(200);
+        $response->assertNotFound();
     }
 }
