@@ -10,6 +10,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Gate;
 
 class VehicleController extends Controller
 {
@@ -17,6 +18,12 @@ class VehicleController extends Controller
     {
         $filters = $request->validated();
         $query = Vehicle::query()->with('vehicleImages');
+
+        Gate::authorize('viewAny', Vehicle::class);
+
+        if (! $request->user()->is_admin) {
+            $query->where('user_id', $request->user()->id);
+        }
 
         if (isset($filters['q'])) {
             $search = $filters['q'];
@@ -44,7 +51,10 @@ class VehicleController extends Controller
 
     public function store(StoreVehicleRequest $request): JsonResponse
     {
+        Gate::authorize('create', Vehicle::class);
+
         $vehicle = Vehicle::create([
+            'user_id' => $request->user()->id,
             'active' => true,
             ...$request->validated(),
         ]);
@@ -54,11 +64,15 @@ class VehicleController extends Controller
 
     public function show(Vehicle $vehicle): Vehicle
     {
+        Gate::authorize('view', $vehicle);
+
         return $vehicle->load('vehicleImages');
     }
 
     public function update(UpdateVehicleRequest $request, Vehicle $vehicle): Vehicle
     {
+        Gate::authorize('update', $vehicle);
+
         $vehicle->update($request->validated());
 
         return $vehicle->refresh();
@@ -66,6 +80,8 @@ class VehicleController extends Controller
 
     public function destroy(Vehicle $vehicle): Response
     {
+        Gate::authorize('delete', $vehicle);
+
         $vehicle->active = false;
         $vehicle->save();
 

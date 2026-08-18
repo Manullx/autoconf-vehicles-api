@@ -8,6 +8,7 @@ use App\Models\VehicleImage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -16,6 +17,7 @@ class VehicleImageController extends Controller
     public function store(StoreVehicleImagesRequest $request, int $vehicleId): JsonResponse
     {
         $vehicle = Vehicle::findOrFail($vehicleId);
+        Gate::authorize('update', $vehicle);
         $storedPaths = [];
 
         try {
@@ -47,9 +49,10 @@ class VehicleImageController extends Controller
 
     public function cover(int $vehicleId, int $imageId): JsonResponse
     {
-        $image = DB::transaction(function () use ($vehicleId, $imageId): VehicleImage {
-            Vehicle::findOrFail($vehicleId);
+        $vehicle = Vehicle::findOrFail($vehicleId);
+        Gate::authorize('update', $vehicle);
 
+        $image = DB::transaction(function () use ($vehicleId, $imageId): VehicleImage {
             $images = VehicleImage::query()
                 ->where('vehicle_id', $vehicleId)
                 ->lockForUpdate()
@@ -74,6 +77,9 @@ class VehicleImageController extends Controller
 
     public function destroy(int $vehicleId, int $imageId): Response
     {
+        $vehicle = Vehicle::findOrFail($vehicleId);
+        Gate::authorize('update', $vehicle);
+
         $image = VehicleImage::query()
             ->where('vehicle_id', $vehicleId)
             ->findOrFail($imageId);
