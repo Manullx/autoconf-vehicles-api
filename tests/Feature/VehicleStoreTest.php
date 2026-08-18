@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class VehicleStoreTest extends TestCase
@@ -11,7 +13,9 @@ class VehicleStoreTest extends TestCase
 
     public function test_store_creates_a_vehicle_with_validated_data(): void
     {
-        $response = $this->postJson('/api/vehicle', $this->validVehicle([
+        Sanctum::actingAs(User::factory()->create());
+
+        $response = $this->postJson('/api/vehicles', $this->validVehicle([
             'active' => false,
             'campo_desconhecido' => 'ignorado',
         ]));
@@ -28,7 +32,9 @@ class VehicleStoreTest extends TestCase
 
     public function test_store_rejects_missing_fields(): void
     {
-        $this->postJson('/api/vehicle', ['marca' => 'Toyota'])
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->postJson('/api/vehicles', ['marca' => 'Toyota'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors([
                 'placa',
@@ -45,10 +51,12 @@ class VehicleStoreTest extends TestCase
 
     public function test_store_rejects_duplicate_unique_fields(): void
     {
-        $payload = $this->validVehicle();
-        $this->postJson('/api/vehicle', $payload)->assertCreated();
+        Sanctum::actingAs(User::factory()->create());
 
-        $this->postJson('/api/vehicle', $payload)
+        $payload = $this->validVehicle();
+        $this->postJson('/api/vehicles', $payload)->assertCreated();
+
+        $this->postJson('/api/vehicles', $payload)
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['placa', 'chassi']);
     }
