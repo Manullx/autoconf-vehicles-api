@@ -18,7 +18,7 @@ return new class extends Migration
             $table->boolean('is_cover');
             $table->timestamps();
 
-            $table->foreign('vehicle_id')->references('id')->on('vehicle');
+            $table->foreign('vehicle_id')->references('id')->on('vehicles')->cascadeOnDelete();
         });
     }
 
