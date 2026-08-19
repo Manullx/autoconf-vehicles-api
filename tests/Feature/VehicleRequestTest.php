@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -97,18 +98,24 @@ class VehicleRequestTest extends TestCase
             ->assertJsonValidationErrors(['placa', 'chassi']);
     }
 
-    public function test_owner_can_soft_disable_a_vehicle(): void
+    public function test_owner_can_delete_a_vehicle_and_its_images(): void
     {
+        Storage::fake('public');
         $user = User::factory()->create();
         $vehicle = $this->createVehicle($user);
+        $path = "vehicles/{$vehicle->id}/image.jpg";
+        Storage::disk('public')->put($path, 'image');
+        $image = $vehicle->vehicleImages()->create([
+            'path' => $path,
+            'is_cover' => true,
+        ]);
         Sanctum::actingAs($user);
 
         $this->deleteJson("/api/vehicles/{$vehicle->id}")->assertNoContent();
 
-        $this->assertDatabaseHas('vehicles', [
-            'id' => $vehicle->id,
-            'active' => false,
-        ]);
+        $this->assertDatabaseMissing('vehicles', ['id' => $vehicle->id]);
+        $this->assertDatabaseMissing('vehicle_image', ['id' => $image->id]);
+        Storage::disk('public')->assertMissing($path);
     }
 
     public function test_regular_user_cannot_update_or_delete_another_users_vehicle(): void

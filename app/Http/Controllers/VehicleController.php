@@ -106,8 +106,10 @@ class VehicleController extends Controller
     {
         Gate::authorize('delete', $vehicle);
 
-        $vehicle->active = false;
-        $vehicle->save();
+        DB::transaction(function () use ($vehicle): void {
+            Storage::disk('public')->delete($vehicle->vehicleImages()->pluck('path')->all());
+            $vehicle->delete();
+        });
 
         return response()->noContent();
     }

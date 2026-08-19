@@ -115,8 +115,8 @@ paths:
       requestBody: {$ref: '#/components/requestBodies/Vehicle'}
       responses: {'200': {description: Atualizado}, '403': {$ref: '#/components/responses/Forbidden'}, '422': {$ref: '#/components/responses/Invalid'}}
     delete:
-      summary: Desativa veículo
-      responses: {'204': {description: Desativado}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}}
+      summary: Exclui o veículo e suas imagens
+      responses: {'204': {description: Excluído}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}}
   /vehicles/{vehicleId}/images:
     post:
       summary: Envia imagens; a primeira torna-se capa
