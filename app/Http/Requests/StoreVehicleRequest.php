@@ -32,7 +32,10 @@ class StoreVehicleRequest extends FormRequest
             'cor' => ['required'],
             'km' => ['required', 'integer', 'min:0'],
             'cambio' => ['required', Rule::enum(Cambio::class)],
-            'combustivel' => ['required', Rule::enum(Combustivel::class)]
+            'combustivel' => ['required', Rule::enum(Combustivel::class)],
+            'files' => ['sometimes', 'array', 'max:5'],
+            'files.*' => ['required', 'image', 'max:204800'],
+            'cover_index' => ['required_with:files', 'integer', Rule::in(array_keys($this->file('files', [])))],
         ];
     }
 }

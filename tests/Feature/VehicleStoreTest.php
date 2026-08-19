@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -59,6 +61,70 @@ class VehicleStoreTest extends TestCase
         $this->postJson('/api/vehicles', $payload)
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['placa', 'chassi']);
+    }
+
+    public function test_store_creates_a_vehicle_with_up_to_five_images(): void
+    {
+        Storage::fake('public');
+        Sanctum::actingAs(User::factory()->create());
+
+        $response = $this->post('/api/vehicles', $this->validVehicle([
+            'files' => [
+                UploadedFile::fake()->image('front.jpg'),
+                UploadedFile::fake()->image('back.jpg'),
+            ],
+            'cover_index' => 1,
+        ]), ['Accept' => 'application/json'])
+            ->assertCreated()
+            ->assertJsonCount(2, 'vehicle_images')
+            ->assertJsonPath('vehicle_images.0.is_cover', false)
+            ->assertJsonPath('vehicle_images.1.is_cover', true);
+
+        foreach ($response->json('vehicle_images') as $image) {
+            Storage::disk('public')->assertExists($image['path']);
+        }
+    }
+
+    public function test_store_rejects_more_than_five_images_or_an_image_larger_than_200_mb(): void
+    {
+        Storage::fake('public');
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->post('/api/vehicles', $this->validVehicle([
+            'files' => array_fill(0, 6, UploadedFile::fake()->image('vehicle.jpg')),
+            'cover_index' => 0,
+        ]), ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['files']);
+
+        $this->post('/api/vehicles', $this->validVehicle([
+            'placa' => 'DEF4G56',
+            'chassi' => '76543210987654321',
+            'files' => [UploadedFile::fake()->image('large.jpg')->size(204801)],
+            'cover_index' => 0,
+        ]), ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['files.0']);
+    }
+
+    public function test_store_requires_a_valid_cover_index_when_images_are_sent(): void
+    {
+        Storage::fake('public');
+        Sanctum::actingAs(User::factory()->create());
+
+        $payload = $this->validVehicle([
+            'files' => [UploadedFile::fake()->image('vehicle.jpg')],
+        ]);
+
+        $this->post('/api/vehicles', $payload, ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cover_index']);
+
+        $payload['cover_index'] = 1;
+
+        $this->post('/api/vehicles', $payload, ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cover_index']);
     }
 
     private function validVehicle(array $overrides = []): array

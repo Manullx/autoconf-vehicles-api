@@ -10,7 +10,10 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 class VehicleController extends Controller
 {
@@ -52,14 +55,35 @@ class VehicleController extends Controller
     public function store(StoreVehicleRequest $request): JsonResponse
     {
         Gate::authorize('create', Vehicle::class);
+        $storedPaths = [];
 
-        $vehicle = Vehicle::create([
-            'user_id' => $request->user()->id,
-            'active' => true,
-            ...$request->validated(),
-        ]);
+        try {
+            $vehicle = DB::transaction(function () use ($request, &$storedPaths): Vehicle {
+                $vehicle = Vehicle::create([
+                    'user_id' => $request->user()->id,
+                    'active' => true,
+                    ...$request->safe()->except(['files', 'cover_index']),
+                ]);
 
-        return response()->json($vehicle, 201);
+                foreach ($request->file('files', []) as $index => $file) {
+                    $path = $file->store("vehicles/{$vehicle->id}", 'public');
+                    $storedPaths[] = $path;
+
+                    $vehicle->vehicleImages()->create([
+                        'path' => $path,
+                        'is_cover' => $index === $request->integer('cover_index'),
+                    ]);
+                }
+
+                return $vehicle;
+            });
+        } catch (Throwable $exception) {
+            Storage::disk('public')->delete($storedPaths);
+
+            throw $exception;
+        }
+
+        return response()->json($vehicle->load('vehicleImages'), 201);
     }
 
     public function show(Vehicle $vehicle): Vehicle

@@ -92,7 +92,11 @@ paths:
       responses: {'200': {description: Página de veículos}, '422': {$ref: '#/components/responses/Invalid'}}
     post:
       summary: Cria veículo para o usuário autenticado
-      requestBody: {$ref: '#/components/requestBodies/Vehicle'}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {$ref: '#/components/schemas/VehicleCreationInput'}
       responses:
         '201': {description: Criado, content: {application/json: {schema: {$ref: '#/components/schemas/Vehicle'}}}}
         '422': {$ref: '#/components/responses/Invalid'}
@@ -169,6 +173,21 @@ components:
         km: {type: integer, minimum: 0}
         cambio: {type: string, enum: [manual, automatico]}
         combustivel: {type: string, enum: [gasolina, alcool, flex, diesel, hibrido, eletrico]}
+    VehicleCreationInput:
+      allOf:
+        - {$ref: '#/components/schemas/VehicleInput'}
+        - type: object
+          properties:
+            files:
+              type: array
+              maxItems: 5
+              description: Até 5 imagens, com no máximo 200 MB por arquivo.
+              items: {type: string, format: binary}
+            cover_index:
+              type: integer
+              minimum: 0
+              maximum: 4
+              description: Posição da imagem de capa no array files, começando em 0. Obrigatório quando files for enviado.
     Token:
       type: object
       properties: {user: {$ref: '#/components/schemas/User'}, token: {type: string}, token_type: {type: string, const: Bearer}}
