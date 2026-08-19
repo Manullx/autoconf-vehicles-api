@@ -27,6 +27,15 @@ class DemoVehicleSeederTest extends TestCase
         $this->assertDatabaseCount('vehicles', 10);
         $this->assertDatabaseCount('vehicle_image', 10);
 
+        $owner = User::where('email', 'admin@example.com')->firstOrFail();
+        $this->assertDatabaseMissing('vehicles', ['created_by' => null]);
+        $this->assertDatabaseMissing('vehicles', ['updated_by' => null]);
+        $this->assertDatabaseHas('vehicles', [
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'updated_by' => $owner->id,
+        ]);
+
         foreach (Storage::disk('public')->allFiles('vehicles') as $path) {
             Storage::disk('public')->assertExists($path);
         }

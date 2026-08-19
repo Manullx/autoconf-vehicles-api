@@ -13,6 +13,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 use Throwable;
 
 class VehicleController extends Controller
@@ -44,9 +45,15 @@ class VehicleController extends Controller
             }
         }
 
-        foreach (explode(',', $filters['sort'] ?? 'id') as $sort) {
+        $sorts = explode(',', $filters['sort'] ?? 'id');
+
+        foreach ($sorts as $sort) {
             $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';
             $query->orderBy(ltrim($sort, '-'), $direction);
+        }
+
+        if (! in_array('id', array_map(fn (string $sort): string => ltrim($sort, '-'), $sorts), true)) {
+            $query->orderBy('id');
         }
 
         return $query->paginate($filters['per_page'] ?? 15)->withQueryString();
@@ -61,12 +68,19 @@ class VehicleController extends Controller
             $vehicle = DB::transaction(function () use ($request, &$storedPaths): Vehicle {
                 $vehicle = Vehicle::create([
                     'user_id' => $request->user()->id,
+                    'created_by' => $request->user()->id,
+                    'updated_by' => $request->user()->id,
                     'active' => true,
                     ...$request->safe()->except(['files', 'cover_index']),
                 ]);
 
                 foreach ($request->file('files', []) as $index => $file) {
                     $path = $file->store("vehicles/{$vehicle->id}", 'public');
+
+                    if ($path === false) {
+                        throw new RuntimeException('The vehicle image file could not be stored.');
+                    }
+
                     $storedPaths[] = $path;
 
                     $vehicle->vehicleImages()->create([
@@ -83,34 +97,57 @@ class VehicleController extends Controller
             throw $exception;
         }
 
-        return response()->json($vehicle->load('vehicleImages'), 201);
+        return response()->json($vehicle->load($this->detailRelations()), 201);
     }
 
     public function show(Vehicle $vehicle): Vehicle
     {
         Gate::authorize('view', $vehicle);
 
-        return $vehicle->load('vehicleImages');
+        return $vehicle->load($this->detailRelations());
     }
 
     public function update(UpdateVehicleRequest $request, Vehicle $vehicle): Vehicle
     {
         Gate::authorize('update', $vehicle);
 
-        $vehicle->update($request->validated());
+        $vehicle->update([
+            ...$request->validated(),
+            'updated_by' => $request->user()->id,
+        ]);
 
-        return $vehicle->refresh();
+        return $vehicle->refresh()->load($this->detailRelations());
     }
 
     public function destroy(Vehicle $vehicle): Response
     {
         Gate::authorize('delete', $vehicle);
 
-        DB::transaction(function () use ($vehicle): void {
-            Storage::disk('public')->delete($vehicle->vehicleImages()->pluck('path')->all());
-            $vehicle->delete();
+        $paths = DB::transaction(function () use ($vehicle): array {
+            $lockedVehicle = Vehicle::query()->lockForUpdate()->findOrFail($vehicle->id);
+            $paths = $lockedVehicle->vehicleImages()->lockForUpdate()->pluck('path')->all();
+
+            $lockedVehicle->delete();
+
+            return $paths;
         });
 
+        if ($paths !== [] && ! Storage::disk('public')->delete($paths)) {
+            throw new RuntimeException('The vehicle image files could not be deleted.');
+        }
+
         return response()->noContent();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function detailRelations(): array
+    {
+        return [
+            'vehicleImages',
+            'creator:id,name,email',
+            'updater:id,name,email',
+        ];
     }
 }

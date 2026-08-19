@@ -36,6 +36,23 @@ class VehicleRequestTest extends TestCase
             ->assertJsonValidationErrors(['sort', 'per_page', 'page']);
     }
 
+    public function test_index_uses_id_as_a_stable_sort_tiebreaker(): void
+    {
+        $user = User::factory()->create();
+        $first = $this->createVehicle($user, ['marca' => 'Same']);
+        $second = $this->createVehicle($user, [
+            'placa' => 'DEF4G56',
+            'chassi' => '76543210987654321',
+            'marca' => 'Same',
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/vehicles?sort=marca')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $first->id)
+            ->assertJsonPath('data.1.id', $second->id);
+    }
+
     public function test_owner_can_show_and_patch_a_vehicle(): void
     {
         $user = User::factory()->create();
@@ -58,6 +75,37 @@ class VehicleRequestTest extends TestCase
             'km' => 25000,
             'valor_venda' => 115000.00,
         ]);
+    }
+
+    public function test_detail_exposes_creator_and_updater_and_admin_update_preserves_ownership(): void
+    {
+        $owner = User::factory()->create();
+        $admin = User::factory()->admin()->create();
+        $vehicle = $this->createVehicle($owner);
+        Sanctum::actingAs($admin);
+
+        $this->getJson("/api/vehicles/{$vehicle->id}")
+            ->assertOk()
+            ->assertJsonPath('user_id', $owner->id)
+            ->assertJsonPath('created_by', $owner->id)
+            ->assertJsonPath('updated_by', $owner->id)
+            ->assertJsonPath('creator.id', $owner->id)
+            ->assertJsonPath('updater.id', $owner->id)
+            ->assertJsonStructure(['created_at', 'updated_at']);
+
+        $this->patchJson("/api/vehicles/{$vehicle->id}", ['km' => 30000])
+            ->assertOk()
+            ->assertJsonPath('user_id', $owner->id)
+            ->assertJsonPath('created_by', $owner->id)
+            ->assertJsonPath('updated_by', $admin->id)
+            ->assertJsonPath('creator.id', $owner->id)
+            ->assertJsonPath('updater.id', $admin->id);
+
+        $vehicle->refresh();
+
+        $this->assertSame($owner->id, $vehicle->user_id);
+        $this->assertSame($owner->id, $vehicle->created_by);
+        $this->assertSame($admin->id, $vehicle->updated_by);
     }
 
     public function test_put_requires_all_vehicle_fields(): void
@@ -149,6 +197,8 @@ class VehicleRequestTest extends TestCase
     {
         return Vehicle::create(array_merge([
             'user_id' => $user->id,
+            'created_by' => $user->id,
+            'updated_by' => $user->id,
             'active' => true,
             'placa' => 'ABC1D23',
             'chassi' => '12345678901234567',

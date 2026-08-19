@@ -57,4 +57,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(Vehicle::class);
     }
+
+    public function createdVehicles(): HasMany
+    {
+        return $this->hasMany(Vehicle::class, 'created_by');
+    }
+
+    public function updatedVehicles(): HasMany
+    {
+        return $this->hasMany(Vehicle::class, 'updated_by');
+    }
 }

@@ -10,6 +10,8 @@ class Vehicle extends Model
 {
     protected $fillable = [
         'user_id',
+        'created_by',
+        'updated_by',
         'active',
         'placa',
         'chassi',
@@ -23,9 +25,31 @@ class Vehicle extends Model
         'combustivel',
     ];
 
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'active' => 'boolean',
+            'valor_venda' => 'float',
+            'km' => 'integer',
+        ];
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function updater(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 
     public function vehicleImages(): HasMany

@@ -24,7 +24,13 @@ class DemoVehicleSeeder extends Seeder
         foreach ($this->vehicles() as $index => $attributes) {
             $vehicle = Vehicle::updateOrCreate(
                 ['placa' => $attributes['placa']],
-                ['user_id' => $owner->id, 'active' => true, ...$attributes],
+                [
+                    'user_id' => $owner->id,
+                    'created_by' => $owner->id,
+                    'updated_by' => $owner->id,
+                    'active' => true,
+                    ...$attributes,
+                ],
             );
 
             $path = "vehicles/{$vehicle->id}/placeholder.svg";
