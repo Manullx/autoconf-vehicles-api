@@ -11,7 +11,7 @@ class RegisterRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('create', User::class) ?? false;
+        return true;
     }
 
     /**
@@ -22,6 +22,7 @@ class RegisterRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique(User::class)],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
         ];
     }
 }

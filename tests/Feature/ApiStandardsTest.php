@@ -23,8 +23,7 @@ class ApiStandardsTest extends TestCase
                 'status' => 422,
                 'message' => 'The provided data is invalid.',
             ])
-            ->assertJsonValidationErrors(['email'])
-            ->assertJsonMissingValidationErrors(['password']);
+            ->assertJsonValidationErrors(['email', 'password']);
     }
 
     public function test_authentication_authorization_and_not_found_errors_are_standardized(): void
@@ -84,5 +83,12 @@ class ApiStandardsTest extends TestCase
                 'message' => 'An unexpected error occurred.',
             ])
             ->assertJsonMissing(['Sensitive internal detail']);
+    }
+
+    public function test_openapi_contract_is_available_without_authentication(): void
+    {
+        $this->get('/api/docs')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/yaml');
     }
 }

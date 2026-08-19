@@ -58,6 +58,12 @@ class UserRequestTest extends TestCase
 
         $this->assertTrue(Hash::check($response->json('temporary_password'), $user->password));
         $this->assertFalse(Hash::check('must-be-ignored', $user->password));
+
+        $this->postJson('/api/auth/login', [
+            'email' => $user->email,
+            'password' => $response->json('temporary_password'),
+        ])->assertOk()
+            ->assertJsonPath('first_login', true);
     }
 
     public function test_user_creation_validates_required_and_unique_fields(): void

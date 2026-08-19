@@ -10,24 +10,19 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
     public function register(RegisterRequest $request): JsonResponse
     {
-        $temporaryPassword = Str::password(16);
         $user = User::create([
             ...$request->validated(),
-            'password' => $temporaryPassword,
             'is_admin' => false,
-            'first_login' => true,
+            'first_login' => false,
         ]);
 
-        return response()->json([
-            ...$user->toArray(),
-            'temporary_password' => $temporaryPassword,
-        ], 201);
+        return response()->json($user, 201);
     }
 
     public function login(LoginRequest $request): JsonResponse
@@ -35,8 +30,11 @@ class AuthController extends Controller
         $credentials = $request->validated();
         $user = User::where('email', $credentials['email'])->first();
 
-        if (! $user || (! $user->first_login && (! isset($credentials['password']) || ! Hash::check($credentials['password'], $user->password)))) {
+        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
             return response()->json([
+                'type' => 'https://httpstatuses.com/401',
+                'title' => 'Invalid credentials',
+                'status' => 401,
                 'message' => 'The provided credentials are incorrect.',
             ], 401);
         }
@@ -54,10 +52,21 @@ class AuthController extends Controller
     public function storePassword(StorePasswordRequest $request): JsonResponse
     {
         $user = $request->user();
+
+        abort_unless($user->first_login, 403);
+
         $user->update([
             'password' => $request->validated('password'),
             'first_login' => false,
         ]);
+
+        $currentToken = $user->currentAccessToken();
+        $user->tokens()
+            ->when(
+                $currentToken instanceof PersonalAccessToken,
+                fn ($query) => $query->whereKeyNot($currentToken->getKey()),
+            )
+            ->delete();
 
         return response()->json($user->refresh());
     }
