@@ -41,21 +41,23 @@ class UserRequestTest extends TestCase
     {
         Sanctum::actingAs(User::factory()->admin()->create());
 
-        $this->postJson('/api/users', [
+        $response = $this->postJson('/api/users', [
             'name' => 'API Admin',
             'email' => 'admin@example.com',
-            'password' => 'password123',
+            'password' => 'must-be-ignored',
             'is_admin' => true,
             'unknown' => 'ignored',
         ])->assertCreated()
             ->assertJsonPath('is_admin', true)
+            ->assertJsonPath('first_login', true)
+            ->assertJsonStructure(['temporary_password'])
             ->assertJsonMissingPath('password')
             ->assertJsonMissingPath('unknown');
 
-        $this->assertDatabaseHas('users', [
-            'email' => 'admin@example.com',
-            'is_admin' => true,
-        ]);
+        $user = User::where('email', 'admin@example.com')->firstOrFail();
+
+        $this->assertTrue(Hash::check($response->json('temporary_password'), $user->password));
+        $this->assertFalse(Hash::check('must-be-ignored', $user->password));
     }
 
     public function test_user_creation_validates_required_and_unique_fields(): void
@@ -65,9 +67,8 @@ class UserRequestTest extends TestCase
 
         $this->postJson('/api/users', [
             'email' => $existing->email,
-            'password' => 'short',
         ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['name', 'email', 'password']);
+            ->assertJsonValidationErrors(['name', 'email']);
     }
 
     public function test_admin_can_patch_a_user_and_keep_the_same_email(): void
@@ -95,7 +96,6 @@ class UserRequestTest extends TestCase
         $this->postJson('/api/users', [
             'name' => 'Blocked',
             'email' => 'blocked@example.com',
-            'password' => 'password123',
         ])->assertForbidden();
 
         $this->patchJson("/api/users/{$target->id}", ['name' => 'Blocked'])->assertForbidden();

@@ -21,9 +21,9 @@ paths:
   /auth/register:
     post:
       summary: Cadastra usuário regular (administrador)
-      requestBody: {$ref: '#/components/requestBodies/User'}
+      requestBody: {$ref: '#/components/requestBodies/UserCreation'}
       responses:
-        '201': {description: Criado, content: {application/json: {schema: {$ref: '#/components/schemas/User'}}}}
+        '201': {description: Criado, content: {application/json: {schema: {$ref: '#/components/schemas/UserCreation'}}}}
         '403': {$ref: '#/components/responses/Forbidden'}
         '422': {$ref: '#/components/responses/Invalid'}
         '429': {$ref: '#/components/responses/Throttled'}
@@ -33,6 +33,15 @@ paths:
       responses:
         '204': {description: Token revogado}
         '401': {$ref: '#/components/responses/Unauthenticated'}
+  /auth/password:
+    post:
+      summary: Define a senha do usuário autenticado e finaliza o primeiro acesso
+      requestBody: {$ref: '#/components/requestBodies/PasswordCreation'}
+      responses:
+        '200': {description: Senha definida, content: {application/json: {schema: {$ref: '#/components/schemas/User'}}}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '422': {$ref: '#/components/responses/Invalid'}
+        '429': {$ref: '#/components/responses/Throttled'}
   /auth/me:
     get:
       summary: Retorna o usuário autenticado
@@ -53,9 +62,9 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
     post:
       summary: Cria usuário (administrador)
-      requestBody: {$ref: '#/components/requestBodies/User'}
+      requestBody: {$ref: '#/components/requestBodies/UserCreation'}
       responses:
-        '201': {description: Criado, content: {application/json: {schema: {$ref: '#/components/schemas/User'}}}}
+        '201': {description: Criado, content: {application/json: {schema: {$ref: '#/components/schemas/UserCreation'}}}}
         '403': {$ref: '#/components/responses/Forbidden'}
         '422': {$ref: '#/components/responses/Invalid'}
   /users/{user}:
@@ -69,11 +78,11 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
     put:
       summary: Substitui usuário (administrador)
-      requestBody: {$ref: '#/components/requestBodies/User'}
+      requestBody: {$ref: '#/components/requestBodies/UserUpdate'}
       responses: {'200': {description: Atualizado}, '403': {$ref: '#/components/responses/Forbidden'}, '422': {$ref: '#/components/responses/Invalid'}}
     patch:
       summary: Atualiza usuário (administrador)
-      requestBody: {$ref: '#/components/requestBodies/User'}
+      requestBody: {$ref: '#/components/requestBodies/UserUpdate'}
       responses: {'200': {description: Atualizado}, '403': {$ref: '#/components/responses/Forbidden'}, '422': {$ref: '#/components/responses/Invalid'}}
     delete:
       summary: Exclui usuário (administrador)
@@ -150,11 +159,19 @@ components:
   schemas:
     User:
       type: object
-      properties: {id: {type: integer}, name: {type: string}, email: {type: string, format: email}, is_admin: {type: boolean}}
+      properties: {id: {type: integer}, name: {type: string}, email: {type: string, format: email}, is_admin: {type: boolean}, first_login: {type: boolean}}
     UserInput:
       type: object
-      required: [name, email, password]
-      properties: {name: {type: string, maxLength: 255}, email: {type: string, format: email}, password: {type: string, minLength: 8}, is_admin: {type: boolean}}
+      required: [name, email]
+      properties: {name: {type: string, maxLength: 255}, email: {type: string, format: email}, is_admin: {type: boolean}}
+    UserUpdateInput:
+      allOf:
+        - {$ref: '#/components/schemas/UserInput'}
+        - {type: object, properties: {password: {type: string, minLength: 8}}}
+    UserCreation:
+      allOf:
+        - {$ref: '#/components/schemas/User'}
+        - {type: object, properties: {temporary_password: {type: string}}}
     Vehicle:
       allOf:
         - {$ref: '#/components/schemas/VehicleInput'}
@@ -190,7 +207,7 @@ components:
               description: Posição da imagem de capa no array files, começando em 0. Obrigatório quando files for enviado.
     Token:
       type: object
-      properties: {user: {$ref: '#/components/schemas/User'}, token: {type: string}, token_type: {type: string, const: Bearer}}
+      properties: {user: {$ref: '#/components/schemas/User'}, first_login: {type: boolean}, token: {type: string}, token_type: {type: string, const: Bearer}}
     Problem:
       type: object
       required: [type, title, status, message]
@@ -203,10 +220,16 @@ components:
   requestBodies:
     Login:
       required: true
-      content: {application/json: {schema: {type: object, required: [email, password], properties: {email: {type: string, format: email}, password: {type: string}}}}}
-    User:
+      content: {application/json: {schema: {type: object, required: [email], properties: {email: {type: string, format: email}, password: {type: string, description: Obrigatória quando first_login for false.}}}}}
+    PasswordCreation:
+      required: true
+      content: {application/json: {schema: {type: object, required: [password, password_confirmation], properties: {password: {type: string, minLength: 8}, password_confirmation: {type: string, minLength: 8}}}}}
+    UserCreation:
       required: true
       content: {application/json: {schema: {$ref: '#/components/schemas/UserInput'}}}
+    UserUpdate:
+      required: true
+      content: {application/json: {schema: {$ref: '#/components/schemas/UserUpdateInput'}}}
     Vehicle:
       required: true
       content: {application/json: {schema: {$ref: '#/components/schemas/VehicleInput'}}}

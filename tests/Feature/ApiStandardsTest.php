@@ -23,7 +23,8 @@ class ApiStandardsTest extends TestCase
                 'status' => 422,
                 'message' => 'The provided data is invalid.',
             ])
-            ->assertJsonValidationErrors(['email', 'password']);
+            ->assertJsonValidationErrors(['email'])
+            ->assertJsonMissingValidationErrors(['password']);
     }
 
     public function test_authentication_authorization_and_not_found_errors_are_standardized(): void

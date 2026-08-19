@@ -12,6 +12,7 @@ Route::prefix('auth')->group(function () {
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
+        Route::post('/password', [AuthController::class, 'storePassword'])->middleware('throttle:5,1');
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);
     });

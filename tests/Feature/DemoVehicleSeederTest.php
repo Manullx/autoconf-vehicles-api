@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Database\Seeders\DemoVehicleSeeder;
+use Database\Seeders\InitialAdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -17,7 +19,6 @@ class DemoVehicleSeederTest extends TestCase
         config([
             'initial_admin.name' => 'Administrator',
             'initial_admin.email' => 'admin@example.com',
-            'initial_admin.password' => 'secure-password',
         ]);
 
         $this->seed();
@@ -31,5 +32,27 @@ class DemoVehicleSeederTest extends TestCase
         }
 
         $this->assertCount(10, Storage::disk('public')->allFiles('vehicles'));
+    }
+
+    public function test_initial_admin_seeder_preserves_password_and_resets_first_login(): void
+    {
+        config([
+            'initial_admin.name' => 'Administrator',
+            'initial_admin.email' => 'admin@example.com',
+        ]);
+
+        $this->seed(InitialAdminSeeder::class);
+
+        $admin = User::where('email', 'admin@example.com')->firstOrFail();
+        $password = $admin->password;
+        $admin->update(['first_login' => false]);
+
+        $this->seed(InitialAdminSeeder::class);
+
+        $admin->refresh();
+
+        $this->assertSame($password, $admin->password);
+        $this->assertTrue($admin->first_login);
+        $this->assertTrue($admin->is_admin);
     }
 }

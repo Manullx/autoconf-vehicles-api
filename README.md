@@ -17,7 +17,6 @@ Configure no `.env` a conexão com o banco e as credenciais do administrador ini
 ```dotenv
 ADMIN_NAME=Administrator
 ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=uma-senha-segura
 CORS_ALLOWED_ORIGINS=https://app.example.com
 ```
 
@@ -30,7 +29,7 @@ php artisan migrate --seed
 php artisan storage:link
 ```
 
-O seeder é idempotente e pode ser repetido com `php artisan db:seed`. As imagens ficam em `storage/app/public/vehicles`.
+Na primeira execução, o seeder exibe uma senha temporária para o administrador. Nas execuções seguintes, a senha atual é preservada e `first_login` volta para `true`. O seeder é idempotente e pode ser repetido com `php artisan db:seed`. As imagens ficam em `storage/app/public/vehicles`.
 
 ## Execução e testes
 
@@ -49,7 +48,7 @@ Gere um token enviando as credenciais para o login:
 curl -X POST http://localhost:8000/api/auth/login \
   -H 'Accept: application/json' \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@example.com","password":"uma-senha-segura"}'
+  -d '{"email":"admin@example.com","password":"SENHA_TEMPORARIA_EXIBIDA_PELO_SEEDER"}'
 ```
 
 Envie o token retornado nas chamadas protegidas:

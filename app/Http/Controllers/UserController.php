@@ -9,6 +9,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 
 class UserController extends Controller
 {
@@ -21,9 +22,17 @@ class UserController extends Controller
 
     public function store(StoreUserRequest $request): JsonResponse
     {
-        $user = User::create($request->validated());
+        $temporaryPassword = Str::password(16);
+        $user = User::create([
+            ...$request->validated(),
+            'password' => $temporaryPassword,
+            'first_login' => true,
+        ]);
 
-        return response()->json($user, 201);
+        return response()->json([
+            ...$user->toArray(),
+            'temporary_password' => $temporaryPassword,
+        ], 201);
     }
 
     public function show(User $user): User

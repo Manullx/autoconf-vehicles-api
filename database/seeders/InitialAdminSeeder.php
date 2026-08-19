@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class InitialAdminSeeder extends Seeder
@@ -17,13 +18,11 @@ class InitialAdminSeeder extends Seeder
         $credentials = [
             'name' => config('initial_admin.name'),
             'email' => config('initial_admin.email'),
-            'password' => config('initial_admin.password'),
         ];
 
         $validator = Validator::make($credentials, [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
-            'password' => ['required', 'string', 'min:12'],
         ]);
 
         if ($validator->fails()) {
@@ -32,15 +31,24 @@ class InitialAdminSeeder extends Seeder
             );
         }
 
-        $user = User::updateOrCreate(
-            ['email' => $credentials['email']],
-            [
-                'name' => $credentials['name'],
-                'password' => $credentials['password'],
-                'is_admin' => true,
-            ],
-        );
+        $user = User::firstOrNew(['email' => $credentials['email']]);
+        $temporaryPassword = null;
+
+        if (! $user->exists) {
+            $temporaryPassword = Str::password(16);
+            $user->password = $temporaryPassword;
+        }
+
+        $user->fill([
+            'name' => $credentials['name'],
+            'is_admin' => true,
+            'first_login' => true,
+        ])->save();
 
         $this->command?->info("Initial administrator ready: {$user->email}");
+
+        if ($temporaryPassword !== null) {
+            $this->command?->warn("Temporary administrator password: {$temporaryPassword}");
+        }
     }
 }
