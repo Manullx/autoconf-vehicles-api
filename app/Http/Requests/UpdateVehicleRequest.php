@@ -10,6 +10,11 @@ use Illuminate\Validation\Rule;
 
 class UpdateVehicleRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $this->merge($this->normalizedIdentifiers());
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -24,7 +29,7 @@ class UpdateVehicleRequest extends FormRequest
         $vehicle = $this->route('vehicle');
 
         return [
-            'placa' => [$presenceRule, 'alpha_num:ascii', Rule::unique('vehicles', 'placa')->ignore($vehicle), 'regex:/^[A-Z]{3}\d[A-Z]\d{2}$/i', 'size:7'],
+            'placa' => [$presenceRule, 'alpha_num:ascii', Rule::unique('vehicles', 'placa')->ignore($vehicle), 'regex:/^[A-Z]{3}\d[A-Z0-9]\d{2}$/i', 'size:7'],
             'chassi' => [$presenceRule, 'alpha_num:ascii', Rule::unique('vehicles', 'chassi')->ignore($vehicle), 'size:17'],
             'marca' => [$presenceRule],
             'modelo' => [$presenceRule],
@@ -35,5 +40,16 @@ class UpdateVehicleRequest extends FormRequest
             'cambio' => [$presenceRule, Rule::enum(Cambio::class)],
             'combustivel' => [$presenceRule, Rule::enum(Combustivel::class)],
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function normalizedIdentifiers(): array
+    {
+        return collect(['placa', 'chassi'])
+            ->filter(fn (string $field): bool => is_string($this->input($field)))
+            ->mapWithKeys(fn (string $field): array => [$field => strtoupper($this->input($field))])
+            ->all();
     }
 }

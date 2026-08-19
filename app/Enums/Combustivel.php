@@ -4,7 +4,6 @@ namespace App\Enums;
 
 enum Combustivel: string
 {
-
     case Gasolina = 'gasolina';
     case Alcool = 'alcool';
     case Flex = 'flex';

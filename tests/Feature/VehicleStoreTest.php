@@ -15,15 +15,24 @@ class VehicleStoreTest extends TestCase
 
     public function test_store_creates_a_vehicle_with_validated_data(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        Storage::fake('public');
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
 
-        $response = $this->postJson('/api/vehicles', $this->validVehicle([
+        $response = $this->post('/api/vehicles', $this->validVehicle([
             'active' => false,
             'campo_desconhecido' => 'ignorado',
-        ]));
+            'files' => [UploadedFile::fake()->image('vehicle.jpg')],
+            'cover_index' => 0,
+        ]), ['Accept' => 'application/json']);
 
         $response->assertCreated()
             ->assertJsonPath('active', true)
+            ->assertJsonPath('created_by', $user->id)
+            ->assertJsonPath('updated_by', $user->id)
+            ->assertJsonPath('creator.id', $user->id)
+            ->assertJsonPath('updater.id', $user->id)
+            ->assertJsonPath('vehicle_images.0.is_cover', true)
             ->assertJsonMissingPath('campo_desconhecido');
 
         $this->assertDatabaseHas('vehicles', [
@@ -48,17 +57,26 @@ class VehicleStoreTest extends TestCase
                 'km',
                 'cambio',
                 'combustivel',
+                'files',
+                'cover_index',
             ]);
     }
 
     public function test_store_rejects_duplicate_unique_fields(): void
     {
+        Storage::fake('public');
         Sanctum::actingAs(User::factory()->create());
 
-        $payload = $this->validVehicle();
-        $this->postJson('/api/vehicles', $payload)->assertCreated();
+        $this->post('/api/vehicles', $this->validVehicle([
+            'files' => [UploadedFile::fake()->image('first.jpg')],
+            'cover_index' => 0,
+        ]), ['Accept' => 'application/json'])->assertCreated();
 
-        $this->postJson('/api/vehicles', $payload)
+        $this->post('/api/vehicles', $this->validVehicle([
+            'placa' => 'abc1d23',
+            'files' => [UploadedFile::fake()->image('second.jpg')],
+            'cover_index' => 0,
+        ]), ['Accept' => 'application/json'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['placa', 'chassi']);
     }
@@ -85,7 +103,7 @@ class VehicleStoreTest extends TestCase
         }
     }
 
-    public function test_store_rejects_more_than_five_images_or_an_image_larger_than_200_mb(): void
+    public function test_store_rejects_more_than_five_images_or_an_image_larger_than_2_mb(): void
     {
         Storage::fake('public');
         Sanctum::actingAs(User::factory()->create());
@@ -100,11 +118,25 @@ class VehicleStoreTest extends TestCase
         $this->post('/api/vehicles', $this->validVehicle([
             'placa' => 'DEF4G56',
             'chassi' => '76543210987654321',
-            'files' => [UploadedFile::fake()->image('large.jpg')->size(204801)],
+            'files' => [UploadedFile::fake()->image('large.jpg')->size(2049)],
             'cover_index' => 0,
         ]), ['Accept' => 'application/json'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['files.0']);
+    }
+
+    public function test_store_accepts_a_numeric_fifth_plate_character(): void
+    {
+        Storage::fake('public');
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->post('/api/vehicles', $this->validVehicle([
+            'placa' => 'abc1223',
+            'files' => [UploadedFile::fake()->image('vehicle.jpg')],
+            'cover_index' => 0,
+        ]), ['Accept' => 'application/json'])
+            ->assertCreated()
+            ->assertJsonPath('placa', 'ABC1223');
     }
 
     public function test_store_requires_a_valid_cover_index_when_images_are_sent(): void

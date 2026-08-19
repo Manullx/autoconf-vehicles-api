@@ -6,10 +6,13 @@ use App\Http\Requests\StoreVehicleImagesRequest;
 use App\Models\Vehicle;
 use App\Models\VehicleImage;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
+use RuntimeException;
 use Throwable;
 
 class VehicleImageController extends Controller
@@ -22,13 +25,37 @@ class VehicleImageController extends Controller
 
         try {
             $images = DB::transaction(function () use ($request, $vehicle, &$storedPaths) {
-                $hasCover = $vehicle->vehicleImages()->where('is_cover', true)->exists();
+                $lockedVehicle = Vehicle::query()->lockForUpdate()->findOrFail($vehicle->id);
+                $existingImages = $lockedVehicle->vehicleImages()->lockForUpdate()->get();
+                $uploadedFiles = $request->file('files', []);
 
-                return collect($request->file('files'))->map(function ($file) use ($vehicle, &$hasCover, &$storedPaths): VehicleImage {
-                    $path = $file->store("vehicles/{$vehicle->id}", 'public');
+                if ($existingImages->count() + count($uploadedFiles) > 5) {
+                    throw ValidationException::withMessages([
+                        'files' => 'A vehicle may have at most 5 images.',
+                    ]);
+                }
+
+                $cover = $existingImages->firstWhere('is_cover', true);
+
+                if ($existingImages->where('is_cover', true)->count() > 1) {
+                    $lockedVehicle->vehicleImages()->update(['is_cover' => false]);
+                    VehicleImage::query()->whereKey($cover->id)->update(['is_cover' => true]);
+                } elseif ($cover === null && $existingImages->isNotEmpty()) {
+                    $cover = $existingImages->first();
+                    $cover->update(['is_cover' => true]);
+                }
+
+                $hasCover = $cover !== null;
+                $images = collect($uploadedFiles)->map(function ($file) use ($lockedVehicle, &$hasCover, &$storedPaths): VehicleImage {
+                    $path = $file->store("vehicles/{$lockedVehicle->id}", 'public');
+
+                    if ($path === false) {
+                        throw new RuntimeException('The vehicle image file could not be stored.');
+                    }
+
                     $storedPaths[] = $path;
 
-                    $image = $vehicle->vehicleImages()->create([
+                    $image = $lockedVehicle->vehicleImages()->create([
                         'path' => $path,
                         'is_cover' => ! $hasCover,
                     ]);
@@ -37,6 +64,10 @@ class VehicleImageController extends Controller
 
                     return $image;
                 });
+
+                $lockedVehicle->forceFill(['updated_by' => $request->user()->id])->save();
+
+                return $images;
             });
         } catch (Throwable $exception) {
             Storage::disk('public')->delete($storedPaths);
@@ -47,27 +78,23 @@ class VehicleImageController extends Controller
         return response()->json($images, 201);
     }
 
-    public function cover(int $vehicleId, int $imageId): JsonResponse
+    public function cover(Request $request, int $vehicleId, int $imageId): JsonResponse
     {
         $vehicle = Vehicle::findOrFail($vehicleId);
         Gate::authorize('update', $vehicle);
 
-        $image = DB::transaction(function () use ($vehicleId, $imageId): VehicleImage {
-            $images = VehicleImage::query()
-                ->where('vehicle_id', $vehicleId)
-                ->lockForUpdate()
-                ->get();
+        $image = DB::transaction(function () use ($request, $vehicleId, $imageId): VehicleImage {
+            $lockedVehicle = Vehicle::query()->lockForUpdate()->findOrFail($vehicleId);
+            $images = $lockedVehicle->vehicleImages()->lockForUpdate()->get();
 
             $image = $images->firstWhere('id', $imageId);
 
             abort_if($image === null, 404);
 
-            VehicleImage::query()
-                ->where('vehicle_id', $vehicleId)
-                ->where('is_cover', true)
-                ->update(['is_cover' => false]);
+            $lockedVehicle->vehicleImages()->update(['is_cover' => false]);
 
-            $image->update(['is_cover' => true]);
+            VehicleImage::query()->whereKey($image->id)->update(['is_cover' => true]);
+            $lockedVehicle->forceFill(['updated_by' => $request->user()->id])->save();
 
             return $image->refresh();
         });
@@ -75,19 +102,41 @@ class VehicleImageController extends Controller
         return response()->json($image);
     }
 
-    public function destroy(int $vehicleId, int $imageId): Response
+    public function destroy(Request $request, int $vehicleId, int $imageId): Response
     {
         $vehicle = Vehicle::findOrFail($vehicleId);
         Gate::authorize('update', $vehicle);
 
-        $image = VehicleImage::query()
-            ->where('vehicle_id', $vehicleId)
-            ->findOrFail($imageId);
+        $path = DB::transaction(function () use ($request, $vehicleId, $imageId): string {
+            $lockedVehicle = Vehicle::query()->lockForUpdate()->findOrFail($vehicleId);
+            $images = $lockedVehicle->vehicleImages()->lockForUpdate()->get();
+            $image = $images->firstWhere('id', $imageId);
 
-        DB::transaction(function () use ($image): void {
-            Storage::disk('public')->delete($image->path);
+            abort_if($image === null, 404);
+
+            if ($images->count() === 1) {
+                throw ValidationException::withMessages([
+                    'image' => 'The only image of a vehicle cannot be deleted.',
+                ]);
+            }
+
+            $remainingImages = $images->where('id', '!=', $image->id);
+            $cover = $image->is_cover
+                ? $remainingImages->first()
+                : ($remainingImages->firstWhere('is_cover', true) ?? $remainingImages->first());
+
+            $lockedVehicle->vehicleImages()->update(['is_cover' => false]);
+            VehicleImage::query()->whereKey($cover->id)->update(['is_cover' => true]);
             $image->delete();
+
+            $lockedVehicle->forceFill(['updated_by' => $request->user()->id])->save();
+
+            return $image->path;
         });
+
+        if (! Storage::disk('public')->delete($path)) {
+            throw new RuntimeException('The vehicle image file could not be deleted.');
+        }
 
         return response()->noContent();
     }

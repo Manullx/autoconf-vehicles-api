@@ -35,6 +35,9 @@ class VehicleImageRequestTest extends TestCase
         foreach ($response->json() as $image) {
             Storage::disk('public')->assertExists($image['path']);
         }
+
+        $this->assertSame($user->id, $vehicle->refresh()->updated_by);
+        $this->assertSame(1, $vehicle->vehicleImages()->where('is_cover', true)->count());
     }
 
     public function test_upload_requires_at_least_one_valid_image(): void
@@ -52,6 +55,31 @@ class VehicleImageRequestTest extends TestCase
             'files' => [UploadedFile::fake()->create('document.txt')],
         ])->assertUnprocessable()
             ->assertJsonValidationErrors(['files.0']);
+
+        $this->postJson("/api/vehicles/{$vehicle->id}/images", [
+            'files' => [UploadedFile::fake()->image('large.jpg')->size(2049)],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['files.0']);
+    }
+
+    public function test_upload_cannot_exceed_five_total_vehicle_images(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $vehicle = $this->createVehicle($user);
+
+        foreach (range(1, 5) as $index) {
+            $this->createImage($vehicle, "vehicles/1/{$index}.jpg", $index === 1);
+        }
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/vehicles/{$vehicle->id}/images", [
+            'files' => [UploadedFile::fake()->image('sixth.jpg')],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['files']);
+
+        $this->assertSame(5, $vehicle->vehicleImages()->count());
     }
 
     public function test_owner_can_change_the_cover_image(): void
@@ -69,6 +97,23 @@ class VehicleImageRequestTest extends TestCase
 
         $this->assertFalse($first->refresh()->is_cover);
         $this->assertTrue($second->refresh()->is_cover);
+        $this->assertSame($user->id, $vehicle->refresh()->updated_by);
+    }
+
+    public function test_selecting_the_current_cover_keeps_exactly_one_cover(): void
+    {
+        $user = User::factory()->create();
+        $vehicle = $this->createVehicle($user);
+        $cover = $this->createImage($vehicle, 'vehicles/1/cover.jpg', true);
+        $this->createImage($vehicle, 'vehicles/1/other.jpg', false);
+        Sanctum::actingAs($user);
+
+        $this->patchJson("/api/vehicles/{$vehicle->id}/images/{$cover->id}/cover")
+            ->assertOk()
+            ->assertJsonPath('id', $cover->id)
+            ->assertJsonPath('is_cover', true);
+
+        $this->assertSame(1, $vehicle->vehicleImages()->where('is_cover', true)->count());
     }
 
     public function test_cover_image_must_belong_to_the_vehicle(): void
@@ -93,6 +138,7 @@ class VehicleImageRequestTest extends TestCase
         $vehicle = $this->createVehicle($user);
         Storage::disk('public')->put('vehicles/1/image.jpg', 'image');
         $image = $this->createImage($vehicle, 'vehicles/1/image.jpg', true);
+        $replacement = $this->createImage($vehicle, 'vehicles/1/replacement.jpg', false);
         Sanctum::actingAs($user);
 
         $this->deleteJson("/api/vehicles/{$vehicle->id}/images/{$image->id}")
@@ -100,6 +146,67 @@ class VehicleImageRequestTest extends TestCase
 
         Storage::disk('public')->assertMissing($image->path);
         $this->assertDatabaseMissing('vehicle_image', ['id' => $image->id]);
+        $this->assertTrue($replacement->refresh()->is_cover);
+        $this->assertSame(1, $vehicle->vehicleImages()->where('is_cover', true)->count());
+        $this->assertSame($user->id, $vehicle->refresh()->updated_by);
+    }
+
+    public function test_owner_cannot_delete_the_only_vehicle_image(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $vehicle = $this->createVehicle($user);
+        Storage::disk('public')->put('vehicles/1/image.jpg', 'image');
+        $image = $this->createImage($vehicle, 'vehicles/1/image.jpg', true);
+        Sanctum::actingAs($user);
+
+        $this->deleteJson("/api/vehicles/{$vehicle->id}/images/{$image->id}")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['image']);
+
+        Storage::disk('public')->assertExists($image->path);
+        $this->assertDatabaseHas('vehicle_image', [
+            'id' => $image->id,
+            'is_cover' => true,
+        ]);
+    }
+
+    public function test_deleting_a_non_cover_image_preserves_the_current_cover(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $vehicle = $this->createVehicle($user);
+        $cover = $this->createImage($vehicle, 'vehicles/1/cover.jpg', true);
+        Storage::disk('public')->put('vehicles/1/other.jpg', 'image');
+        $other = $this->createImage($vehicle, 'vehicles/1/other.jpg', false);
+        Sanctum::actingAs($user);
+
+        $this->deleteJson("/api/vehicles/{$vehicle->id}/images/{$other->id}")
+            ->assertNoContent();
+
+        $this->assertTrue($cover->refresh()->is_cover);
+        $this->assertSame(1, $vehicle->vehicleImages()->where('is_cover', true)->count());
+    }
+
+    public function test_admin_image_change_updates_audit_without_changing_owner_or_creator(): void
+    {
+        $owner = User::factory()->create();
+        $admin = User::factory()->admin()->create();
+        $vehicle = $this->createVehicle($owner);
+        $first = $this->createImage($vehicle, 'vehicles/1/first.jpg', true);
+        $second = $this->createImage($vehicle, 'vehicles/1/second.jpg', false);
+        Sanctum::actingAs($admin);
+
+        $this->patchJson("/api/vehicles/{$vehicle->id}/images/{$second->id}/cover")
+            ->assertOk();
+
+        $vehicle->refresh();
+
+        $this->assertSame($owner->id, $vehicle->user_id);
+        $this->assertSame($owner->id, $vehicle->created_by);
+        $this->assertSame($admin->id, $vehicle->updated_by);
+        $this->assertFalse($first->refresh()->is_cover);
+        $this->assertTrue($second->refresh()->is_cover);
     }
 
     public function test_regular_user_cannot_manage_another_users_images(): void
@@ -127,6 +234,8 @@ class VehicleImageRequestTest extends TestCase
     {
         return Vehicle::create(array_merge([
             'user_id' => $user->id,
+            'created_by' => $user->id,
+            'updated_by' => $user->id,
             'active' => true,
             'placa' => 'ABC1D23',
             'chassi' => '12345678901234567',
